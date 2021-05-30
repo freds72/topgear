@@ -3,65 +3,124 @@ version 32
 __lua__
 -- mode7 + details
 -- @freds72
--- global
-local dz,dy=0,0
--- camera pos
-local cx,cy,cz=0,2,0
-local da,angle=0,0
+-- globals
+local _cam,_plyr
 
+local ground_tex=0x0400.0410
+
+function lerp(a,b,t)
+	return a*(1-t)+b*t
+end
+
+function v_scale(a,scale)
+	a[1]*=scale
+	a[2]*=scale
+end
+
+function v_normz(a)
+ local x,y=a[1],a[2]
+ local d=sqrt(x*x+y*y)
+ return {x/d,y/d},d
+end
+
+function v_add(a,b,scale)
+	scale=scale or 1
+ return {
+  a[1]+scale*b[1],
+  a[2]+scale*b[2]}
+end
+
+-->8
+-- camera
+function make_cam()	
+	local cx,cy,cz=0,2,0
+	local a=0
+	return {
+		track=function(self,pos,angle,dist)
+			--a=lerp(a,angle,0.5)
+			a=angle
+			cx=pos[1]+dist*sin(angle)
+ 			cz=pos[2]-dist*cos(angle)
+		end,
+		project=function(self,pos)
+		end,
+		mode7=function(self,tex)
+			poke4(0x5f38,tex)	
+			local ca,sa,cy=cos(a),-sin(a),cy*64
+			for ye=32,48+64 do
+				-- coords in world space
+				local rz=cy/(ye-31)
+				local x,z=((-ca*rz+sa*rz)<<1)+cx,((sa*rz+ca*rz)<<1)+cz
+				tline(0,ye,127,ye,x,z,(ca*rz)>>5,(-sa*rz)>>5)
+			end
+ 			poke4(0x5f38,0)
+		end
+	}
+end
+
+function make_player(pos)
+	local acc=0
+	-- camera pos
+	local da,angle=0,0
+	local v={0,0}
+
+	return {
+		orientation=function(self)
+			return pos,angle,da
+		end,
+		update=function(self)
+			--angle*=0.6
+			da*=0.4
+			if(abs(da)<0.001) da=0
+			acc*=0.2
+			-- friction
+			local nv,d=v_normz(v)
+			v_scale(v,0.9)
+			
+			if(btn(2)) acc-=1/16
+			if(btn(3)) acc+=1/16
+		
+			v=v_add(v,{sin(angle),-cos(angle)},acc)
+
+			if(btn(0)) da-=1/128
+			if(btn(1)) da+=1/128
+			angle+=d*da
+
+			local f={-v[2],v[1]}
+			v=v_add(v,f,d*da)
+			pos=v_add(pos,v)
+		end
+	}
+end
+
+-->8
+-- game loop
 function _init()
  -- extended memory mode
  poke(0x5f36,16)
+
+ _plyr=make_player({0,0})
+ _cam=make_cam()
 end
 
 function _update()
-	da*=0.8
-	dz*=0.8
-	if(abs(da)<0.001) da=0
-	
- if(btn(2)) dz-=1/64
- if(btn(3)) dz+=1/64
- 
- if(btn(0)) da-=1/512
- if(btn(1)) da+=1/512
- angle+=da
- 
- if(btn(4)) dy=0.2
- 
- cx+=dz*sin(angle)
- cz+=-dz*cos(angle)
- cy=max(cy+dy,1)
- dy-=0.02
- --cy=abs(5*cos(time()/16))
-end
+	_plyr:update()
 
-function draw_ground(mx,my,mw,mh,scale,maxz)
- poke(0x5f38,mw)
- poke(0x5f39,mh)
- poke(0x5f3a,mx)
- poke(0x5f3b,my)
- local a=angle--time()/4
- scale=scale or 0
- maxz=maxz or 32000
- local ca,sa,cy=cos(a),-sin(a),cy*64
- for ye=32,48+64 do
-		-- coords in world space
-		local rz=cy/(ye-31)
-		local x,z=(-ca*rz+sa*rz+cx)<<scale,(sa*rz+ca*rz+cz)<<scale
-	 tline(0,ye,127,ye,x,z,(ca*rz)>>(6-scale),(-sa*rz)>>(6-scale))
- end
- poke4(0x5f38,0)
+	local pos,angle,da=_plyr:orientation()
+	_cam:track(pos,angle,8)
+ --cy=abs(5*cos(time()/16))
 end
 
 function _draw() 
  cls(12)
- draw_ground(0,4,16,2,2)
+ _cam:mode7(ground_tex)
  -- backup screen
  poke4(0x8000,peek4(0x0,128*64/4))
  -- screen to ssheet
  poke4(0x0,peek4(0x6000,128*64/4))
  palt(0,false)
 	-- draw screen
+	local pos,angle,da=_plyr:orientation()
  cls(12)	
 	local s=sin(da*2)
 	for x=0,127 do
@@ -91,11 +150,12 @@ function _draw()
 	--spr(154,58,96,2.5,2)
 	palt()
  print(stat(1),2,2,7)
- print(cx.."/"..cz,2,8,7)
+ print(pos[1].."\n"..pos[2],2,8,7)
 end
 
 
 -->8
+-- sprite rotation helper
 function rspr(x,y,w,h,angle,du)
  local p={{0,0},{w,0},{w,h},{0,h}}
  du=du or 0
@@ -129,7 +189,7 @@ function tquad(v,uv)
 		local dy=y1-y0
 		local dx,du,dv=(x1-x0)/dy,(u1-u0)/dy,(v1-v0)/dy
 		if(y0<0) x0-=y0*dx u0-=y0*du v0-=y0*dv y0=0
-		local cy0=ceil(y0)
+		local cy0=y0\1+1
 		-- sub-pix shift
 		local sy=cy0-y0
 		x0+=sy*dx
@@ -428,7 +488,7 @@ b33333333333333333333333333333bbbbbbbbbb11bbbbbbbbbbbb11111111111133333333333377
 333333311111111111111111bbbbbbbbbbbbbbbb33333333333333333bbbbb33333333333bbbbbbbbbbbbbbbbb88888888888888888888888888333333388888
 
 __map__
-0102030405060708090a101112131415161718191a202105060708090a10111213191a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0102030405060708090a101101131415161718191a202105060708090a10111213191a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 22232425262728292a303132333435363738393a404142262728292a30313233343535000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 434445464748494a505152535455565758595a606162634748494a5051525354555656000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 6465666768696a707172737475767778797a808182838468696a70717273696a707172000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
