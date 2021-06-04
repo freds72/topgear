@@ -8,27 +8,7 @@ local _cam,_plyr
 
 local ground_tex=0x0400.0410
 
-function lerp(a,b,t)
-	return a*(1-t)+b*t
-end
-
-function v_scale(a,scale)
-	a[1]*=scale
-	a[2]*=scale
-end
-
-function v_normz(a)
- local x,y=a[1],a[2]
- local d=sqrt(x*x+y*y)
- return {x/d,y/d},d
-end
-
-function v_add(a,b,scale)
-	scale=scale or 1
- return {
-  a[1]+scale*b[1],
-  a[2]+scale*b[2]}
-end
+#include vector.lua
 
 -->8
 -- camera
@@ -44,14 +24,15 @@ function make_cam()
 		end,
 		project=function(self,pos)
 		end,
+		-- fast mode7 
 		mode7=function(self,tex)
 			poke4(0x5f38,tex)	
 			local ca,sa,cy=cos(a),-sin(a),cy*64
+			local u,v=(-ca+sa)<<1,(sa+ca)<<1
 			for ye=32,48+64 do
 				-- coords in world space
 				local rz=cy/(ye-31)
-				local x,z=((-ca*rz+sa*rz)<<1)+cx,((sa*rz+ca*rz)<<1)+cz
-				tline(0,ye,127,ye,x,z,(ca*rz)>>5,(-sa*rz)>>5)
+				tline(0,ye,127,ye,u*rz+cx,v*rz+cz,(ca*rz)>>5,(-sa*rz)>>5)
 			end
  			poke4(0x5f38,0)
 		end
