@@ -77,6 +77,7 @@ function _draw()
 	cls()	
 	local inner,outer={},{}
 	local n=#track
+	local faces={}
 	for i=0,n-1 do
 		local t1,t2,t3=track[((i-1)%n)+1],track[(i%n)+1],track[((i+1)%n)+1]
 		line(t1[1],t1[2],t2[1],t2[2],7)
@@ -89,30 +90,61 @@ function _draw()
 		-- line(p1[1],p1[2],p2[1],p2[2],1)
 		local res,out=intersect(p1,p2,p3,p4)
 		if out then
-			local side,right_side,left_side=1,inner,outer
-			if res==1 then
-				side,right_side,left_side=-1,outer,inner
-			end
-			add(right_side,v_add(t2,t1.v,side*8)) -- p2
-			add(right_side,v_add(t2,t2.v,side*8)) -- p3
-			-- get the "opposite" point		
-			out=v_add(t2,make_v(t2,out),-side) 
-			pset(out[1],out[2],8) 
-			add(left_side,out) 
 			print(res,out[1],out[2]-8,7)
-		end			
+			local side,right_side,left_side=1,inner,outer
+			-- straight line
+			if res==2 then
+				out=v_add(t2,t1.v,-8)
+				if i>0 then
+					add(faces,{p2,out,left_side[#left_side],right_side[#right_side]})
+				end				
+				add(right_side,p2)
+				add(left_side,out)
+			else
+				if res==1 then
+					side,right_side,left_side=-1,outer,inner
+				end
+				p2=v_add(t2,t1.v,side*8)
+				p3=v_add(t2,t2.v,side*8)
+				-- get the "opposite" point		
+				out=v_add(t2,make_v(t2,out),-side) 
 
+				if i>0 then
+					add(faces,{p2,out,left_side[#left_side],right_side[#right_side]})
+				end			
+				-- inner slice
+				if side==1 then
+					add(faces,{p3,p2,out})
+				else
+					add(faces,{p2,p3,out})
+				end				
+				add(right_side,p2) -- p2
+				add(right_side,p3) -- p3 (bevel)
+				add(left_side,out) 
+			end
+		end		
 	end
+	if #inner>1 and #outer>1 then
+		add(faces,{inner[1],outer[1],outer[#outer],inner[#inner]})
+	end	
 	
 	n=#outer
-	for i=1,#outer do
+	for i=1,n do
 		local p0,p1=outer[i%n+1],outer[i]
 		line(p0[1],p0[2],p1[1],p1[2],1)
 	end
 	n=#inner
-	for i=1,#inner do
+	for i=1,n do
 		local p0,p1=inner[i%n+1],inner[i]
 		line(p0[1],p0[2],p1[1],p1[2],1)
+	end
+
+	for _,p in pairs(faces) do
+		n=#p
+		for i=1,n do
+			local p0,p1=p[i%n+1],p[i]
+			line(p0[1],p0[2],p1[1],p1[2],9)
+		end
 	end
 
 end
