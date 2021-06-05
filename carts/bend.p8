@@ -108,18 +108,23 @@ function _draw()
 				p3=v_add(t2,t2.v,side*8)
 				-- get the "opposite" point		
 				out=v_add(t2,make_v(t2,out),-side) 
+				-- get caps
+				local out_2=v_add(out,t1.v,2*side*8)
+				local out_3=v_add(out,t2.v,2*side*8)
 
 				if i>0 then
-					add(faces,{p2,out,left_side[#left_side],right_side[#right_side]})
+					add(faces,{out_2,out,left_side[#left_side],right_side[#right_side]})
 				end			
 				-- inner slice
 				if side==1 then
-					add(faces,{p3,p2,out})
+					add(faces,{out,out_3,p3,p2,out_2})
 				else
-					add(faces,{p2,p3,out})
+					add(faces,{out,out_2,p2,p3,out_3})
 				end				
+				add(right_side,out_2) -- out cap
 				add(right_side,p2) -- p2
 				add(right_side,p3) -- p3 (bevel)
+				add(right_side,out_3) -- out cap
 				add(left_side,out) 
 			end
 		end		
