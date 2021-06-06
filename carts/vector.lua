@@ -35,3 +35,10 @@ end
 function v_dot(a,b)
   return a[1]*b[1]+a[2]*b[2]
 end
+
+function v_lerp(a,b,t)
+  return {
+    lerp(a[1],b[1],t),
+    lerp(a[2],b[2],t)
+  }
+end

@@ -8,28 +8,63 @@ function make_tex(mx,my,mw,mh)
 	return my<<8|mx|mh>>8|mw>>16
 end
 
-local track={
+local path,track={},{
  {32,32,r=8,tex=make_tex(0,0,8,4)},
  {64,32,r=8,tex=make_tex(0,0,8,4)},
  {96,64,r=8,tex=make_tex(0,0,8,4)},
+ {128,64,r=8,tex=make_tex(0,0,8,4)},
  {96,96,r=8,tex=make_tex(0,0,8,4)}}
 local tracki=0
 
 function _update()
- if(btnp(4)) tracki=(tracki+1)%#track
+	if(btnp(4)) tracki=(tracki+1)%#track
 
- local dx,dy=0,0
- if(btn(0)) dx=-1
- if(btn(1)) dx=1
- if(btn(2)) dy=-1
- if(btn(3)) dy=1
- local p0=track[tracki+1]
- p0[1]+=dx
- p0[2]+=dy
- 
-	local p0=track[#track]
-	for i=1,#track do
-		local p1=track[i]		
+	local dx,dy=0,0
+	if(btn(0)) dx=-1
+	if(btn(1)) dx=1
+	if(btn(2)) dy=-1
+	if(btn(3)) dy=1
+	local p0=track[tracki+1]
+	p0[1]+=dx
+	p0[2]+=dy
+
+	-- update
+	path={}
+	local n=#track 
+	local p0=track[n]
+	for i=0,n-1 do
+		local p1,p2=track[i+1],track[(i+1)%n+1]
+
+		local u,len=v_normz(make_v(p0,p1))
+		local u2,len2=v_normz(make_v(p1,p2))
+
+		-- split?
+		if v_dot(u,u2)<-0.3 then
+			local p0_1,p1_2=v_lerp(p0,p1,0.6),v_lerp(p1,p2,0.4)
+			p0_1.r=p0.r
+			p0_1.tex=p0.tex
+			p1_2.r=p1.r
+			p1_2.tex=p1.tex
+			add(path,p0_1)
+			-- middle point
+			local mp=v_add(p0_1,p1_2)
+			v_scale(mp,0.5)
+			mp=v_add(mp,p1)
+			v_scale(mp,0.5)
+			mp.r=p1.r
+			mp.tex=p1.tex
+			add(path,mp)
+			add(path,p1_2)
+		else
+			add(path,p1)
+		end
+		--
+		p0=p1
+	end
+
+	local p0=path[#path]
+	for i=1,#path do
+		local p1=path[i]
 
 		-- update normal
 		local u,len=v_normz(make_v(p0,p1))
@@ -37,7 +72,7 @@ function _update()
 		p0.u=u	
 		p0.v=v		
 		p0.len=len
-		--
+
 		p0=p1
 	end
 end
@@ -82,6 +117,7 @@ end
 function _draw()
 	cls()	
 	local inner,outer={},{}
+	local track=path
 	local n=#track
 	local faces={}
 	for i=0,n do
@@ -99,7 +135,7 @@ function _draw()
 		if out then
 			local side,right_side,left_side=1,inner,outer
 			-- straight line
-			if res==2 then
+			if res==2 or v_dot(t1.u,t2.u)>0.95 then
 				out=v_add(t2,t1.v,-t1.r)
 				if i>0 then
 					local lastr=right_side[#right_side]
@@ -148,7 +184,13 @@ function _draw()
 						}})
 
 					else
-						add(faces,{out,out_2,p2,p3,out_3})
+						add(faces,{out,out_2,p2,p3,out_3,tex=make_tex(0,4,8,4),uv={
+							{0,0},
+							{t1.r,0},
+							{t1.r,1},
+							{t1.r,2},
+							{t1.r,3}
+						}})
 					end				
 					add(right_side,out_2) -- out cap
 					add(right_side,p2) -- p2
@@ -172,22 +214,28 @@ function _draw()
 	--	}})
 	--end	
 	
-	n=#outer
-	for i=1,n do
-		local p0,p1=outer[i%n+1],outer[i]
-		line(p0[1],p0[2],p1[1],p1[2],1)
-	end
-	n=#inner
-	for i=1,n do
-		local p0,p1=inner[i%n+1],inner[i]
-		line(p0[1],p0[2],p1[1],p1[2],1)
-	end
+	--n=#outer
+	--for i=1,n do
+	--	local p0,p1=outer[i%n+1],outer[i]
+	--	line(p0[1],p0[2],p1[1],p1[2],1)
+	--end
+	--n=#inner
+	--for i=1,n do
+	--	local p0,p1=inner[i%n+1],inner[i]
+	--	line(p0[1],p0[2],p1[1],p1[2],1)
+	--end
+--
+	--n=#path
+	--for i=1,n do
+	--	local p0,p1=path[i%n+1],path[i]
+	--	line(p0[1],p0[2],p1[1],p1[2],1)
+	--end
 
 	for _,p in pairs(faces) do
 		n=#p
 		for i=1,n do
 			local p0,p1=p[i%n+1],p[i]
-			line(p0[1],p0[2],p1[1],p1[2],9)
+			--line(p0[1],p0[2],p1[1],p1[2],9)
 		end
 		-- 
 		if p.uv then
